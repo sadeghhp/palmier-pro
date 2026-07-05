@@ -31,10 +31,15 @@ enum AnthropicKeychain {
 
 struct AnthropicClient: AgentClient {
     let apiKey: String
-    let model: AnthropicModel
+    let modelId: String
+    var baseURL: String = "https://api.anthropic.com"
+    var useBearerAuth: Bool = false
     var maxTokens: Int = 8192
 
-    private static let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
+    private var endpoint: URL {
+        URL(string: baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/v1/messages")
+            ?? URL(string: "https://api.anthropic.com/v1/messages")!
+    }
 
     func stream(
         system: String,
@@ -62,15 +67,19 @@ struct AnthropicClient: AgentClient {
     ) async throws {
         guard !apiKey.isEmpty else { throw AnthropicClientError.missingAPIKey }
 
-        var request = URLRequest(url: Self.endpoint)
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        if useBearerAuth {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        } else {
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        }
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue("text/event-stream", forHTTPHeaderField: "accept")
         request.httpBody = try JSONSerialization.data(
             withJSONObject: AnthropicRequestBody.build(
-                model: model, maxTokens: maxTokens, system: system, tools: tools, messages: messages
+                model: modelId, maxTokens: maxTokens, system: system, tools: tools, messages: messages
             ),
             options: [.sortedKeys]
         )

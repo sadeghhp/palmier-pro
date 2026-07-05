@@ -138,10 +138,19 @@ struct AgentPanelView: View {
 
     @ViewBuilder
     private var modelPicker: some View {
-        if service.hasApiKey {
+        let models = service.availableModels
+        if models.count > 1 {
+            let grouped = Dictionary(grouping: models, by: \.providerId)
             Menu {
-                ForEach(service.availableModels, id: \.self) { m in
+                ForEach(models.filter(\.isBuiltin), id: \.self) { m in
                     Button(m.displayName) { service.model = m }
+                }
+                ForEach(providerGroups(grouped), id: \.providerId) { group in
+                    Section(group.title) {
+                        ForEach(group.models, id: \.self) { m in
+                            Button(m.displayName) { service.model = m }
+                        }
+                    }
                 }
             } label: {
                 HStack(spacing: AppTheme.Spacing.xs) {
@@ -156,6 +165,19 @@ struct AgentPanelView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
+        }
+    }
+
+    private struct ProviderGroup {
+        let providerId: String
+        let title: String
+        let models: [ChatModelRef]
+    }
+
+    private func providerGroups(_ grouped: [String: [ChatModelRef]]) -> [ProviderGroup] {
+        ProviderStore.shared.enabledProviders.compactMap { provider in
+            guard let models = grouped[provider.id], !models.isEmpty else { return nil }
+            return ProviderGroup(providerId: provider.id, title: provider.displayName, models: models)
         }
     }
 

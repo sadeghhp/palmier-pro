@@ -155,7 +155,7 @@ enum AnthropicSSE {
 
 enum AnthropicRequestBody {
     static func build(
-        model: AnthropicModel,
+        model: String,
         maxTokens: Int,
         system: String,
         tools: [AnthropicToolSchema],
@@ -182,7 +182,7 @@ enum AnthropicRequestBody {
             messageBlocks.append(lastMsg)
         }
         var body: [String: Any] = [
-            "model": model.rawValue,
+            "model": model,
             "max_tokens": maxTokens,
             "stream": true,
             "system": [["type": "text", "text": system, "cache_control": ["type": "ephemeral"]]],

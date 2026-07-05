@@ -40,38 +40,84 @@ final class AgentService {
 
     var canStream: Bool {
         if hasApiKey { return true }
+        if !ProviderStore.shared.enabledProviders.isEmpty { return true }
         let account = AccountService.shared
         return account.isSignedIn && account.hasCredits
     }
 
-    var availableModels: [AnthropicModel] {
+    /// Built-in Anthropic models available via the Palmier proxy / BYOK key.
+    private var builtinModels: [AnthropicModel] {
         if hasApiKey { return AnthropicModel.allCases }
+        guard AccountService.shared.isSignedIn else { return [] }
         return AccountService.shared.isPaid ? [.sonnet5] : [.haiku45]
+    }
+
+    var availableModels: [ChatModelRef] {
+        var refs = builtinModels.map { ChatModelRef.builtin($0) }
+        for provider in ProviderStore.shared.enabledProviders {
+            for m in provider.models {
+                refs.append(ChatModelRef(
+                    providerId: provider.id,
+                    modelId: m.id,
+                    displayName: "\(provider.displayName) · \(m.displayName)"
+                ))
+            }
+        }
+        return refs
     }
 
     private func selectClient() -> (any AgentClient)? {
         let chosen = effectiveModel
-        if hasApiKey { return AnthropicClient(apiKey: apiKey, model: chosen) }
+        if !chosen.isBuiltin { return customClient(for: chosen) }
+
+        let model = AnthropicModel(rawValue: chosen.modelId) ?? .sonnet5
+        if hasApiKey { return AnthropicClient(apiKey: apiKey, modelId: model.rawValue) }
         if AccountService.shared.isSignedIn {
-            return PalmierClient(model: chosen)
+            return PalmierClient(model: model)
         }
         return nil
     }
 
-    var effectiveModel: AnthropicModel {
-        let available = availableModels
-        if available.contains(model) { return model }
-        return available.first ?? .sonnet5
+    private func customClient(for ref: ChatModelRef) -> (any AgentClient)? {
+        guard let provider = ProviderStore.shared.provider(id: ref.providerId) else { return nil }
+        let key = ProviderStore.shared.key(for: provider.id)
+        switch provider.kind {
+        case .openAICompatible:
+            return OpenAICompatibleClient(
+                baseURL: provider.baseURL,
+                apiKey: key,
+                modelId: ref.modelId,
+                capabilities: provider.capabilities
+            )
+        case .anthropicCompatible:
+            return AnthropicClient(
+                apiKey: key,
+                modelId: ref.modelId,
+                baseURL: provider.baseURL,
+                useBearerAuth: false
+            )
+        case .gemini:
+            return nil // Phase 2
+        }
     }
 
-    var model: AnthropicModel = {
+    var effectiveModel: ChatModelRef {
+        let available = availableModels
+        if let match = available.first(where: { $0.token == model.token }) { return match }
+        return available.first ?? ChatModelRef.builtin(.sonnet5)
+    }
+
+    var model: ChatModelRef = {
         if let raw = UserDefaults.standard.string(forKey: "agentModel"),
-           let m = AnthropicModel(rawValue: raw) {
-            return m
+           let parsed = ChatModelRef.parse(token: raw) {
+            let display = parsed.providerId == ChatModelRef.builtin
+                ? (AnthropicModel(rawValue: parsed.modelId)?.displayName ?? parsed.modelId)
+                : parsed.modelId
+            return ChatModelRef(providerId: parsed.providerId, modelId: parsed.modelId, displayName: display)
         }
-        return .sonnet5
+        return ChatModelRef.builtin(.sonnet5)
     }() {
-        didSet { UserDefaults.standard.set(model.rawValue, forKey: "agentModel") }
+        didSet { UserDefaults.standard.set(model.token, forKey: "agentModel") }
     }
 
     var sessions: [ChatSession] = []
