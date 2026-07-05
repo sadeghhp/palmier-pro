@@ -95,8 +95,7 @@ struct LottieVideoGeneratorTests {
         gen.requestedTimeToleranceAfter = .zero
         nonisolated(unsafe) let unsafeGen = gen
 
-        func sample(_ seconds: Double) async throws -> (top: NSColor, bottom: NSColor) {
-            let frame = try await unsafeGen.image(at: CMTime(seconds: seconds, preferredTimescale: 600)).image
+        func colors(_ frame: CGImage) throws -> (top: NSColor, bottom: NSColor) {
             let rep = NSBitmapImageRep(cgImage: frame)
             return (
                 try #require(rep.colorAt(x: frame.width / 4, y: frame.height / 4)),
@@ -105,12 +104,14 @@ struct LottieVideoGeneratorTests {
         }
 
         // Pixels round-trip with correct orientation: red top-left, transparent/black bottom-right.
-        let start = try await sample(0)
+        let startFrame = try await unsafeGen.image(at: CMTime(seconds: 0, preferredTimescale: 600)).image
+        let start = try colors(startFrame)
         #expect(start.top.redComponent > 0.7)
         #expect(start.bottom.redComponent < 0.3)
 
         // Past the animation, the frozen last frame is still present (clip is extendable).
-        let frozen = try await sample(5)
+        let frozenFrame = try await unsafeGen.image(at: CMTime(seconds: 5, preferredTimescale: 600)).image
+        let frozen = try colors(frozenFrame)
         #expect(frozen.top.redComponent > 0.7)
     }
 }

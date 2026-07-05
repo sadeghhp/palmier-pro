@@ -40,6 +40,18 @@
 
 Palmier Pro is an open source video editor for Mac. You and your agent can generate and edit videos together inside the timeline.
 
+> ### About this fork
+>
+> This is a community fork of [palmier-io/palmier-pro](https://github.com/palmier-io/palmier-pro) that lets the **in-app agent talk to your own AI providers** instead of only the built-in Palmier models.
+>
+> Add a provider under **Settings → Providers** and its models show up in the agent's model picker, grouped by provider. Supported out of the box:
+>
+> - **OpenAI-compatible** — OpenRouter, Groq, Together AI, and any custom OpenAI-style endpoint
+> - **Local** — Ollama, LM Studio, vLLM (run models entirely on your machine, no key required)
+> - **Anthropic-compatible** — Anthropic API or any compatible endpoint
+>
+> Bring your own API key (BYOK) per provider, or point at a local server. Everything else — the editor, MCP server, and upstream generative AI features — works exactly as in the upstream project.
+
 ### Swift-native video editor
 
 We built Palmier Pro from scratch with Swift. The north star is Premiere Pro, with our take on integrating AI into the workflow.
